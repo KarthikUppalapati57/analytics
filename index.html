@@ -36,8 +36,6 @@ body{margin:0;background:var(--bg);font-family:Segoe UI,system-ui,-apple-system,
 .filters{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;background:var(--panel);border:1px solid var(--line);padding:12px;border-radius:14px}
 label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
 select,input{width:100%;padding:8px 9px;border:1px solid #d1d5db;border-radius:9px;background:#fff}
-.update-btn{width:100%;height:38px;margin-top:19px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}
-.update-btn:hover{background:#1d4ed8}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}
 .sales-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
@@ -72,7 +70,7 @@ th{background:#f8fafc;color:#475569;position:sticky;top:0}
   <main class="main">
     <div class="topbar"><div><div class="h1">Weekly Expenditure Dashboard</div><div class="sub" id="scopeTitle">Sales Revenue ? Overall</div></div><div class="sub" id="dateRange"></div></div>
 
-    <section class="filters"><div><label>Start Week</label><select id="startWeek"></select></div><div><label>End Week</label><select id="endWeek"></select></div><div><button class="update-btn" id="updateRange" type="button">Update</button></div><div><label>Search</label><input id="search" placeholder="search code/category"></div></section>
+    <section class="filters"><div><label>Start Week</label><select id="startWeek"></select></div><div><label>End Week</label><select id="endWeek"></select></div><div><label>Search</label><input id="search" placeholder="search code/category"></div></section>
     <section class="sales-kpis">
       <div class="card"><div class="k">Expected Sales (Selected Weeks)</div><div class="v" id="salesExpected">-</div></div>
       <div class="card"><div class="k">Actual Sales (Selected Weeks)</div><div class="v" id="salesActual">-</div></div>
@@ -100,16 +98,15 @@ const state={selectedSection:'sales',selectedPage:'sales_overall',selectedCatego
 const rowsByCode=new Map(allRows.map(r=>[r.code,r]));
 let salesTarget=SALES_META.target||[];
 let salesActual=SALES_META.actual||[];
-const startSel=el('startWeek'),endSel=el('endWeek'),updateRange=el('updateRange'),search=el('search');
-let appliedStart=0, appliedEnd=0;
+const startSel=el('startWeek'),endSel=el('endWeek'),search=el('search');
 function rebuildWeekSelectors(){
   startSel.innerHTML='';
   endSel.innerHTML='';
   weeks.forEach((w,i)=>{const t=`${w} (${dates[i]||''})`;startSel.add(new Option(t,i));endSel.add(new Option(t,i));});
   startSel.value=0;
-  endSel.value=String(Math.max(weeks.length-1,0));
-  appliedStart=0;
-  appliedEnd=Math.max(weeks.length-1,0);
+  let defaultEnd = weeks.length-1;
+  for(let i=salesActual.length-1;i>=0;i--){ if((salesActual[i]||0) > 0){ defaultEnd=i; break; } }
+  endSel.value=String(defaultEnd);
 }
 rebuildWeekSelectors();
 const codeInPrefixes=(code,prefixes)=>prefixes.some(p=>code===p||code.startsWith(p+'-'));
@@ -125,7 +122,7 @@ for(const n of c.querySelectorAll('.subcat')) n.onclick=(e)=>{e.stopPropagation(
 const val=(r,i)=>r.values[i]??0; const sum=(r,s,e)=>{let t=0;for(let i=s;i<=e;i++)t+=val(r,i);return t;};
 function filteredRows(){const page=getCurrentPage(), q=search.value.trim().toLowerCase(); return allRows.filter(r=>{if(!r.code||!codeInPrefixes(r.code,page.prefixes)) return false; if(state.selectedSubcategory&&r.code!==state.selectedSubcategory&&!r.code.startsWith(state.selectedSubcategory+'-')) return false; if(!state.selectedSubcategory&&state.selectedCategory&&r.code!==state.selectedCategory&&!r.code.startsWith(state.selectedCategory+'-')) return false; if(q&&!(r.code.toLowerCase().includes(q)||r.name.toLowerCase().includes(q)||r.label.toLowerCase().includes(q))) return false; return true;});}
 function render(){
-const s=Math.min(appliedStart,appliedEnd), e=Math.max(appliedStart,appliedEnd), page=getCurrentPage();
+const s=Math.min(+startSel.value,+endSel.value), e=Math.max(+startSel.value,+endSel.value), page=getCurrentPage();
 const ds=filteredRows();
 const scope=[NAV.find(n=>n.id===state.selectedSection)?.name||'',page.name];
 if(state.selectedSubcategory) scope.push(rowsByCode.get(state.selectedSubcategory)?.name||state.selectedSubcategory);
@@ -244,8 +241,7 @@ async function refreshFromServer(){
 refreshFromServer();
 setInterval(refreshFromServer, 60000);
 
-updateRange.addEventListener('click',()=>{appliedStart=+startSel.value; appliedEnd=+endSel.value; render();});
-search.addEventListener('input',render); buildSidebar(); render();
+[startSel,endSel].forEach(i=>i.addEventListener('change',render)); search.addEventListener('input',render); buildSidebar(); render();
 </script>
 </body>
 </html>
